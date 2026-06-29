@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: rag-system-backend
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: GROQ_API_KEY
+        sync: false          # set manually in Render dashboard
+      - key: MONGO_URI
+        sync: false          # set manually in Render dashboard
+      - key: FRONTEND_URL
+        sync: false          # set to your Vercel URL after deploy
+      - key: API_URL
+        sync: false          # set to your Render service URL after deploy
+      - key: GOOGLE_CREDENTIALS_PATH
+        value: /etc/secrets/credentials.json
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: EMBED_BATCH_SIZE
+        value: "4"
+      - key: EMBED_CHUNK_BATCH
+        value: "32"
+    disk:
+      name: synced-docs
+      mountPath: /app/synced_docs
+      sizeGB: 1

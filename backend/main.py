@@ -22,14 +22,16 @@ frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 if frontend_url.endswith("/"):
     frontend_url = frontend_url[:-1]
 
+# Build the allowed origins list — always include local dev URLs
+allowed_origins = list({
+    frontend_url,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        frontend_url,
-        "https://hiighwatch-rag.vercel.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
