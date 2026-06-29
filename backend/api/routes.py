@@ -741,3 +741,96 @@ Question:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+class AnalyticsResponse(BaseModel):
+    answer: str
+    sources: List[Source]
+    active_claws: List[str]
+    cached: bool = False
+
+@router.post("/analytics/orchestrate", response_model=AnalyticsResponse)
+def orchestrate_endpoint(req: AskRequest):
+    try:
+        from connectors.gdrive import get_drive_service
+        try:
+            service = get_drive_service()
+            about = service.about().get(fields="user").execute()
+            user_email = about['user']['emailAddress']
+        except Exception:
+            user_email = "default_user"
+
+        progress = sync_progress.get(user_email) if user_email else None
+        if (user_email in active_syncs) or (progress and progress.get("stage") not in (None, "done", "error")):
+            return AnalyticsResponse(
+                answer="Your documents are still syncing and being indexed. Please wait for Index Stats to show Ready, then try again.",
+                sources=[],
+                active_claws=[],
+                cached=False
+            )
+
+        # Save user query to MongoDB
+        chats_collection.insert_one({
+            "user_email": user_email,
+            "role": "user",
+            "content": req.query,
+            "timestamp": datetime.utcnow()
+        })
+
+        # Cache key based on query and filters
+        cache_key = hashlib.md5(f"orchestrate_{req.query}_{req.filter_metadata}".encode()).hexdigest()
+        if cache_key in llm_cache:
+            cached_data = llm_cache[cache_key]
+            # Save AI response to MongoDB
+            chats_collection.insert_one({
+                "user_email": user_email,
+                "role": "ai",
+                "content": cached_data["answer"],
+                "sources": [s.dict() for s in cached_data["sources"]],
+                "timestamp": datetime.utcnow()
+            })
+            return AnalyticsResponse(
+                answer=cached_data["answer"],
+                sources=cached_data["sources"],
+                active_claws=cached_data["active_claws"],
+                cached=True
+            )
+
+        from analytics.orchestrator import MasterOrchestrator
+        orchestrator = MasterOrchestrator()
+        result = orchestrator.run_pipeline(req.query, filter_metadata=req.filter_metadata)
+
+        response_sources = []
+        for src in result["sources"]:
+            response_sources.append(Source(
+                doc_id=src["doc_id"],
+                name=src["name"],
+                chunk_text=src["chunk_text"]
+            ))
+
+        # Save to cache
+        llm_cache[cache_key] = {
+            "answer": result["answer"],
+            "sources": response_sources,
+            "active_claws": result["active_claws"]
+        }
+
+        # Save AI response to MongoDB
+        chats_collection.insert_one({
+            "user_email": user_email,
+            "role": "ai",
+            "content": result["answer"],
+            "sources": [s.dict() for s in response_sources],
+            "timestamp": datetime.utcnow()
+        })
+
+        return AnalyticsResponse(
+            answer=result["answer"],
+            sources=response_sources,
+            active_claws=result["active_claws"],
+            cached=False
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

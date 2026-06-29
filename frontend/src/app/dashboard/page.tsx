@@ -13,6 +13,7 @@ import { getApiBaseUrl } from "@/utils/apiBaseUrl";
 function DashboardContent() {
   const [docs, setDocs] = useState<{ id: string, name: string, status: string }[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<"docs" | "claws">("docs");
   const searchParams = useSearchParams();
   const router = useRouter();
   const shouldAutoSync = searchParams.get("sync") === "true";
@@ -94,10 +95,76 @@ function DashboardContent() {
           <SyncPanel onSyncSuccess={handleSyncSuccess} autoSync={shouldAutoSync} />
         </div>
 
-        {/* Docs Section */}
-        <div className="flex-1 flex flex-col min-h-0 p-5 pt-5">
-          <h3 className="text-[0.7rem] font-semibold text-white/40 uppercase tracking-[0.15em] mb-4 pl-1">Knowledge Base</h3>
-          <DocsPanel docs={docs} onDocumentClick={handleDocumentClick} />
+        {/* Tab Selector */}
+        <div className="flex px-5 py-2 border-b border-white/[0.06] bg-black/20 gap-2">
+          <button
+            onClick={() => setSidebarTab("docs")}
+            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+              sidebarTab === "docs" 
+                ? "bg-white/[0.08] text-white border-white/10 shadow-inner" 
+                : "text-white/40 border-transparent hover:text-white/70"
+            }`}
+          >
+            Knowledge Base
+          </button>
+          <button
+            onClick={() => setSidebarTab("claws")}
+            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+              sidebarTab === "claws" 
+                ? "bg-white/[0.08] text-white border-white/10 shadow-inner" 
+                : "text-white/40 border-transparent hover:text-white/70"
+            }`}
+          >
+            Analytical Claws
+          </button>
+        </div>
+
+        {/* Docs or Claws Section */}
+        <div className="flex-1 flex flex-col min-h-0 p-5 pt-4 overflow-y-auto custom-scrollbar">
+          {sidebarTab === "docs" ? (
+            <div className="flex-1 flex flex-col min-h-0">
+              <h3 className="text-[0.7rem] font-semibold text-white/40 uppercase tracking-[0.15em] mb-4 pl-1">Knowledge Base</h3>
+              <DocsPanel docs={docs} onDocumentClick={handleDocumentClick} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-[0.7rem] font-semibold text-white/40 uppercase tracking-[0.15em] mb-2 pl-1">Claw Registry</h3>
+              
+              {[
+                { name: "Data Analyst Claw", role: "Raw Data Specialist", color: "bg-blue-500" },
+                { name: "KPI Monitoring Claw", role: "Metric Sentinel", color: "bg-green-500" },
+                { name: "Anomaly Detection Claw", role: "Operational Risk Guard", color: "bg-red-500" },
+                { name: "Customer Segmentation Claw", role: "Cohort Demographer", color: "bg-purple-500" },
+                { name: "Business Performance Claw", role: "Strategic Synthesizer", color: "bg-amber-500" }
+              ].map((claw, idx) => (
+                <div key={idx} className="p-3 rounded-xl bg-white/[0.01] border border-white/[0.04] hover:bg-white/[0.03] transition-all flex flex-col gap-1 backdrop-blur-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-white/90">{claw.name}</span>
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/20 opacity-75"></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${claw.color}`}></span>
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-white/40">{claw.role}</span>
+                </div>
+              ))}
+
+              <div className="pt-4 border-t border-white/[0.06]">
+                <h4 className="text-[0.7rem] font-semibold text-white/40 uppercase tracking-[0.15em] mb-3 pl-1">Analysis Templates</h4>
+                <button
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('loadTemplate', { detail: { 
+                      query: "Incoming Request: Q2 Partner Performance & Risk Assessment\n\nExecute a sequential analysis using the Data Analyst Claw, the Anomaly Detection Claw, and the Customer Segmentation Claw to deliver a unified, executive-ready diagnostic report." 
+                    }}));
+                  }}
+                  className="w-full text-left p-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 transition-all flex flex-col gap-1 active:scale-[0.98]"
+                >
+                  <span className="text-[11px] font-semibold text-white">Q2 Partner Assessment</span>
+                  <span className="text-[9px] text-white/50 leading-relaxed">Runs sequential analysis (Data Analyst &rarr; Anomaly &rarr; Segmentation) for network report.</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

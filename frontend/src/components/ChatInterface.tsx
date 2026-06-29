@@ -12,6 +12,7 @@ interface Message {
   role: "user" | "ai";
   content: string;
   sources?: { doc_id: string; name: string; chunk_text: string }[];
+  active_claws?: string[];
 }
 
 export function ChatInterface() {
@@ -19,6 +20,8 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [isOrchestratorMode, setIsOrchestratorMode] = useState(false);
+  const [loaderStatus, setLoaderStatus] = useState("Routing query & planning analysis...");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,6 +44,46 @@ export function ChatInterface() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, loading]);
+
+  useEffect(() => {
+    let intervalId: any;
+    if (loading && isOrchestratorMode) {
+      const loaderStates = [
+        "Planning execution pipeline...",
+        "Data Analyst Claw: Ingesting Q2 KPIs...",
+        "Anomaly Detection Claw: Scanning for WoW drops...",
+        "Anomaly Detection Claw: Logging exception rates...",
+        "Customer Segmentation Claw: Mapping behavioral DNA...",
+        "Customer Segmentation Claw: Formulating cohorts...",
+        "Business Performance Claw: Synthesizing executive pulse...",
+        "Compiling final briefings..."
+      ];
+      let i = 0;
+      setLoaderStatus(loaderStates[0]);
+      intervalId = setInterval(() => {
+        i = (i + 1) % loaderStates.length;
+        setLoaderStatus(loaderStates[i]);
+      }, 3500);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [loading, isOrchestratorMode]);
+
+  useEffect(() => {
+    const handleLoadTemplate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ query: string }>;
+      if (customEvent.detail && customEvent.detail.query) {
+        setQuery(customEvent.detail.query);
+        setIsOrchestratorMode(true);
+      }
+    };
+
+    window.addEventListener('loadTemplate', handleLoadTemplate);
+    return () => {
+      window.removeEventListener('loadTemplate', handleLoadTemplate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleDocumentSummaryRequest = (e: Event) => {
@@ -66,13 +109,15 @@ export function ChatInterface() {
     setLoading(true);
 
     try {
-      const res = await axios.post(`${getApiBaseUrl()}/ask`, { query: userQuery, filter_metadata: filterMetadata || undefined });
+      const endpoint = isOrchestratorMode ? "/analytics/orchestrate" : "/ask";
+      const res = await axios.post(`${getApiBaseUrl()}${endpoint}`, { query: userQuery, filter_metadata: filterMetadata || undefined });
       setMessages((prev) => [
         ...prev,
         {
           role: "ai",
           content: res.data.answer,
           sources: res.data.sources,
+          active_claws: res.data.active_claws,
         },
       ]);
     } catch (err: any) {
@@ -174,6 +219,26 @@ export function ChatInterface() {
               </div>
               
               <div className="flex flex-col gap-2 min-w-0 w-full pt-1">
+                {msg.active_claws && msg.active_claws.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-1.5 items-center">
+                    <span className="text-[9px] uppercase font-bold text-white/30 tracking-wider">Executed Claws:</span>
+                    {msg.active_claws.map((clawId) => {
+                      const names: Record<string, string> = {
+                        data_analyst: "Data Analyst",
+                        kpi_monitoring: "KPI Monitoring",
+                        anomaly_detection: "Anomaly Detection",
+                        customer_segmentation: "Customer Segmentation",
+                        business_performance: "Business Performance"
+                      };
+                      return (
+                        <span key={clawId} className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/60">
+                          {names[clawId] || clawId}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                
                 <div className={`text-[0.95rem] leading-relaxed prose prose-sm prose-invert max-w-none ${
                   msg.role === "user" 
                     ? "text-white/90 font-medium prose-p:text-white/90" 
@@ -215,7 +280,9 @@ export function ChatInterface() {
               </div>
               <div className="px-5 py-4 rounded-2xl bg-white/[0.03] border border-white/[0.05] rounded-tl-sm flex items-center gap-3 backdrop-blur-md">
                 <Loader2 className="w-4 h-4 animate-spin text-white/50" />
-                <span className="text-sm text-white/50 font-medium">Analyzing documents...</span>
+                <span className="text-sm text-white/50 font-medium">
+                  {isOrchestratorMode ? `[Orchestrator] ${loaderStatus}` : "Analyzing documents..."}
+                </span>
               </div>
             </motion.div>
           )}
@@ -224,14 +291,36 @@ export function ChatInterface() {
 
       {/* Input Area */}
       <div className="p-6 pt-0 pb-8 relative z-10 bg-gradient-to-t from-[#030303] via-[#030303]/80 to-transparent">
-        <div className="max-w-4xl mx-auto relative">
+        <div className="max-w-4xl mx-auto relative flex flex-col gap-3">
+          
+          {/* Mode Switcher */}
+          <div className="flex self-start bg-[#0A0A0A] border border-white/10 p-1 rounded-xl text-xs gap-1 shadow-md z-20">
+            <button
+              type="button"
+              onClick={() => setIsOrchestratorMode(false)}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${!isOrchestratorMode ? "bg-white text-black font-semibold shadow" : "text-white/40 hover:text-white/70"}`}
+            >
+              Standard Ask
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsOrchestratorMode(true)}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${isOrchestratorMode ? "bg-white text-black font-semibold shadow" : "text-white/40 hover:text-white/70"}`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Claw Orchestrator
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit} className="relative flex items-center shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-2xl">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ask about your documents..."
-              className="w-full bg-[#0A0A0A]/90 backdrop-blur-xl border border-white/10 text-white placeholder-white/30 rounded-2xl pl-6 pr-16 py-4 focus:outline-none focus:ring-1 focus:ring-white/20 focus:border-white/20 transition-all text-[0.95rem]"
+              placeholder={isOrchestratorMode ? "Run advanced analytical queries..." : "Ask about your documents..."}
+              className={`w-full bg-[#0A0A0A]/90 backdrop-blur-xl border text-white placeholder-white/30 rounded-2xl pl-6 pr-16 py-4 focus:outline-none focus:ring-1 focus:ring-white/20 focus:border-white/20 transition-all text-[0.95rem] ${
+                isOrchestratorMode ? "border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]" : "border-white/10"
+              }`}
             />
             <button
               type="submit"
@@ -241,8 +330,8 @@ export function ChatInterface() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-          <p className="text-center text-[10px] text-white/30 mt-3 font-medium">
-            LLaMA 3.3 can make mistakes. Always verify important information.
+          <p className="text-center text-[10px] text-white/30 mt-1 font-medium font-sans">
+            {isOrchestratorMode ? "Analytical Claws run sequentially. Outputs are aggregated." : "LLaMA 3.3 can make mistakes. Always verify important information."}
           </p>
         </div>
       </div>
